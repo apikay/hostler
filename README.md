@@ -1,22 +1,23 @@
-# hostile [![travis][travis-image]][travis-url] [![npm][npm-image]][npm-url] [![downloads][downloads-image]][downloads-url] [![javascript style guide][standard-image]][standard-url]
+# hostler 
 
-[travis-image]: https://img.shields.io/travis/feross/hostile/master.svg
-[travis-url]: https://travis-ci.org/feross/hostile
-[npm-image]: https://img.shields.io/npm/v/hostile.svg
-[npm-url]: https://npmjs.org/package/hostile
-[downloads-image]: https://img.shields.io/npm/dm/hostile.svg
-[downloads-url]: https://npmjs.org/package/hostile
-[standard-image]: https://img.shields.io/badge/code_style-standard-brightgreen.svg
-[standard-url]: https://standardjs.com
+#### Programmatic `/etc/hosts` manipulation (in node.js)
 
-#### Simple, programmatic `/etc/hosts` manipulation (in node.js)
+Fork of https://github.com/feross/hostile
 
-![hostile](https://raw.github.com/feross/hostile/master/img.png)
+ES6
+
+Makes a backup of `hosts` file each time it writes something.
+
+## Motivation
+
+- unmaintained, last release on May 2018
+- after it emptied my beloved `hosts` and I couldn't recoverit it I found out that the backup is out of scope https://github.com/feross/hostile/issues/20
+- Some other extra features and changes
 
 ## install
 
 ```bash
-npm install hostile
+npm install apikay/hostler
 ```
 
 ## usage
@@ -24,58 +25,62 @@ npm install hostile
 If you use OS X or Linux, this module assumes your hosts file is at `/etc/hosts`. On
 Windows, it assumes your hosts file is at `C:/Windows/System32/drivers/etc/hosts`.
 
-**Commands that modify the hosts file require root privileges.**
+**Commands that modify the hosts file require root privileges:**
 
-#### list all host file records
-
-```bash
-hostile list
-```
-
-#### set a domain in the hosts file
+#### - list all host file records
 
 ```bash
-hostile set [ip] [host]
+hostler list [all]
 ```
+`all` is optional and lists all lines
+
+
+#### - set a domain in the hosts file
+
+```bash
+hostler set [ip] [host] [comment]
+```
+
+`comment` is optional and ads a comment to that line
 
 examples:
 ```bash
-hostile set localhost domain.com
-hostile set 192.168.33.10 domain.com
+hostler set localhost domain.com
+hostler set 192.168.33.10 domain.com "what a wonderful world"
 ```
 
-#### remove a domain from the hosts file
+#### - remove a domain from the hosts file
 
 ```bash
-hostile remove [host]
+hostler remove [host]
 ```
 
 example:
 ```bash
-hostile remove domain.com
+hostler remove domain.com
 ```
 
-#### load a set of hosts from a file
+#### - load a set of hosts from a file
 
 ```bash
-hostile load [file_path]
+hostler load [file_path]
 ```
 hosts.txt
 ```bash
 # hosts.txt
-127.0.0.1 github.com
+127.0.0.1 github.com # git repos babe
 127.0.0.1 twitter.com
 ```
 
 example:
 ```bash
-hostile load hosts.txt
+hostler load hosts.txt
 ```
 
-#### unload [remove] a set of hosts from a file
+#### - unload [remove] a set of hosts from a file
 
 ```bash
-hostile unload [file_path]
+hostler unload [file_path]
 ```
 
 ```bash
@@ -86,20 +91,21 @@ hostile unload [file_path]
 
 example:
 ```bash
-hostile unload hosts.txt
+hostler unload hosts.txt
 ```
 
-#### set up auto completion
+#### - set up auto completion
+(not tested)
 
 bash:
 ```bash
-hostile --completion >> ~/hostile.completion.sh
-echo 'source ~/hostile.completion.sh' >> .bash_profile
+hostler --completion >> ~/hostler.completion.sh
+echo 'source ~/hostler.completion.sh' >> .bash_profile
 ```
 
 zsh:
 ```bash
-echo '. <(./hostile --completion)' >> .zshrc
+echo '. <(./hostler --completion)' >> .zshrc
 ```
 
 ## methods
@@ -116,8 +122,8 @@ before you start accepting requests.
 #### add a rule to /etc/hosts
 
 ```js
-var hostile = require('hostile')
-hostile.set('127.0.0.1', 'peercdn.com', function (err) {
+var hostler = require('hostler')
+hostler.set('127.0.0.1', 'peercdn.com', function (err) {
   if (err) {
     console.error(err)
   } else {
@@ -131,7 +137,7 @@ If the rule already exists, then this does nothing.
 #### remove a rule from /etc/hosts
 
 ```js
-hostile.remove('127.0.0.1', 'peercdn.com', function (err) {
+hostler.remove('127.0.0.1', 'peercdn.com', function (err) {
   if (err) {
     console.error(err)
   } else {
@@ -149,7 +155,7 @@ If the rule does not exist, then this does nothing.
 // non-host entries in the result
 var preserveFormatting = false
 
-hostile.get(preserveFormatting, function (err, lines) {
+hostler.get(preserveFormatting, function (err, lines) {
   if (err) {
     console.error(err.message)
   }
@@ -166,7 +172,7 @@ hostile.get(preserveFormatting, function (err, lines) {
 // non-host entries in the result
 var preserveFormatting = false
 
-hostile.getFile(file_path, preserveFormatting, function (err, lines) {
+hostler.getFile(file_path, preserveFormatting, function (err, lines) {
   if (err) {
     console.error(err.message)
   }
@@ -178,9 +184,8 @@ hostile.getFile(file_path, preserveFormatting, function (err, lines) {
 
 ## contributors
 
+Original contributors:
 - [Feross Aboukhadijeh](http://feross.org) (author)
 - [Maayan Glikser](https://github.com/morsdyce)
 
-## license
-
-MIT. Copyright (c) [Feross Aboukhadijeh](http://feross.org).
+## license: MIT.

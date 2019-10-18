@@ -15,11 +15,11 @@ const help = () => {
 Usage: hostile [command]
 
 Commands:
-  list [all]                  List all current domain records in hosts file
-  set [ip] [host] [comment]       Set a domain in the hosts file
-  remove [domain]        Remove a domain from the hosts file
-  load [file]            Load a set of host entries from a file
-  unload [file]          Remove a set of host entries from a file
+  list [all]                List all current domain records in hosts file
+  set [ip] [host] [comment] Set a domain in the hosts file
+  remove [domain]           Remove a domain from the hosts file
+  load [file]               Load a set of host entries from a file
+  unload [file]             Remove a set of host entries from a file
   `);
 };
 

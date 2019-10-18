@@ -1,15 +1,14 @@
 {
-  "name": "hostile",
+  "name": "hostler",
   "description": "Simple /etc/hosts manipulation",
-  "version": "1.3.2",
+  "version": "0.1.0",
   "author": {
-    "name": "Feross Aboukhadijeh",
-    "email": "feross@feross.org",
-    "url": "https://feross.org"
+    "name": "Paul Apostol",
+    "email": "devel.pa@gmail.com"
   },
   "bin": "bin/cmd.js",
   "bugs": {
-    "url": "https://github.com/feross/hostile/issues"
+    "url": "https://github.com/apikay/hostler/issues"
   },
   "dependencies": {
     "chalk": "^2.3.1",
@@ -21,7 +20,7 @@
   "devDependencies": {
     "tape": "^4.0.0"
   },
-  "homepage": "https://github.com/feross/hostile",
+  "homepage": "https://github.com/apikay/hostler",
   "keywords": [
     "/etc/hosts",
     "change hosts",
@@ -31,7 +30,7 @@
   ],
   "license": "MIT",
   "main": "index.js",
-  "repository": "git://github.com/feross/hostile",
+  "repository": "git://github.com/apikay/hostler",
   "scripts": {
     "test": "tape test/*.js"
   }
