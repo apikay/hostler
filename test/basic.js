@@ -1,116 +1,117 @@
-var fs = require('fs')
-var hostile = require('../')
-var os = require('os')
-var path = require('path')
-var test = require('tape')
+var fs = require('fs');
+var hostile = require('../');
+var os = require('os');
+var path = require('path');
+var test = require('tape');
 
-var TMP = os.tmpdir()
-var TEST_HOSTS = path.join(TMP, 'hostile-hosts')
+var TMP = os.tmpdir();
+var TEST_HOSTS = path.join(TMP, 'hostile-hosts');
 
-test('setup', function (t) {
+test('setup', function(t) {
   // copy hosts file to /tmp
   fs.createReadStream(hostile.HOSTS)
     .pipe(fs.createWriteStream(TEST_HOSTS))
-    .on('close', function () {
+    .on('close', function() {
       // monkey patch the `fs` module
-      var _createReadStream = fs.createReadStream
-      fs.createReadStream = function (filename) {
-        var args = Array.prototype.slice.call(arguments, 0)
+      var _createReadStream = fs.createReadStream;
+      fs.createReadStream = function(filename) {
+        var args = Array.prototype.slice.call(arguments, 0);
         if (filename === hostile.HOSTS) {
-          args[0] = TEST_HOSTS
+          args[0] = TEST_HOSTS;
         }
-        return _createReadStream.apply(fs, args)
-      }
-      var _createWriteStream = fs.createWriteStream
-      fs.createWriteStream = function (filename) {
-        var args = Array.prototype.slice.call(arguments, 0)
+        return _createReadStream.apply(fs, args);
+      };
+      var _createWriteStream = fs.createWriteStream;
+      fs.createWriteStream = function(filename) {
+        var args = Array.prototype.slice.call(arguments, 0);
         if (filename === hostile.HOSTS) {
-          args[0] = TEST_HOSTS
+          args[0] = TEST_HOSTS;
         }
-        return _createWriteStream.apply(fs, args)
-      }
+        return _createWriteStream.apply(fs, args);
+      };
 
-      t.pass('setup complete')
-      t.end()
+      t.pass('setup complete ' + TMP);
+      t.end();
     })
-    .on('error', function (err) {
-      t.fail(err.message)
-    })
-})
+    .on('error', function(err) {
+      t.fail(err.message);
+    });
+});
 
-test('set', function (t) {
-  t.plan(3)
-  hostile.set('127.0.0.1', 'peercdn.com', function (err) {
-    t.error(err)
-    hostile.get(false, function (err, lines) {
-      t.error(err)
-      lines.forEach(function (line) {
-        if (line[0] === '127.0.0.1' && line[1] === 'peercdn.com') {
-          t.pass('set worked')
+test('set', function(t) {
+  t.plan(3);
+  hostile.set({ ip: '127.0.0.1', host: 'peercdn.com' }, function(err) {
+    t.error(err);
+    hostile.get(false, function(err, lines) {
+      t.error(err);
+      lines.forEach(function(line) {
+        // console.log(line);
+        if (line.ip === '127.0.0.1' && line.host === 'peercdn.com') {
+          t.pass('set worked');
         }
-      })
-    })
-  })
-})
+      });
+    });
+  });
+});
 
-test('set ipv6', function (t) {
-  t.plan(4)
-  hostile.set('::1', 'peercdn.com', function (err) {
-    t.error(err)
-    hostile.get(false, function (err, lines) {
-      t.error(err)
-      var exists = lines.some(function (line) {
-        return line[0] === '::1' && line[1] === 'peercdn.com'
-      })
-      t.ok(exists, 'ipv6 line was added')
-      exists = lines.some(function (line) {
-        return line[0] === '127.0.0.1' && line[1] === 'peercdn.com'
-      })
-      t.ok(exists, 'ipv4 line still exists & was not replaced')
-    })
-  })
-})
+test('set ipv6', function(t) {
+  t.plan(4);
+  hostile.set({ ip: '::1', host: 'peercdn.com' }, function(err) {
+    t.error(err);
+    hostile.get(false, function(err, lines) {
+      t.error(err);
+      var exists = lines.some(function(line) {
+        return line.ip === '::1' && line.host === 'peercdn.com';
+      });
+      t.ok(exists, 'ipv6 line was added');
+      exists = lines.some(function(line) {
+        return line.ip === '127.0.0.1' && line.host === 'peercdn.com';
+      });
+      t.ok(exists, 'ipv4 line still exists & was not replaced');
+    });
+  });
+});
 
-test('remove ipv4', function (t) {
-  t.plan(2)
-  hostile.remove('127.0.0.1', 'peercdn.com', function (err) {
-    t.error(err)
-    hostile.get(false, function (err, lines) {
-      t.error(err)
-      lines.forEach(function (line) {
-        if (line[0] === '127.0.0.1' && line[1] === 'peercdn.com') {
-          t.fail('remove failed')
+test('remove ipv4', function(t) {
+  t.plan(2);
+  hostile.remove({ ip: '127.0.0.1', host: 'peercdn.com' }, function(err) {
+    t.error(err);
+    hostile.get(false, function(err, lines) {
+      t.error(err);
+      lines.forEach(function(line) {
+        if (line.ip === '127.0.0.1' && line.host === 'peercdn.com') {
+          t.fail('remove failed');
         }
-      })
-    })
-  })
-})
+      });
+    });
+  });
+});
 
-test('remove ipv6', function (t) {
-  t.plan(2)
-  hostile.remove('::1', 'peercdn.com', function (err) {
-    t.error(err)
-    hostile.get(false, function (err, lines) {
-      t.error(err)
-      lines.forEach(function (line) {
-        if (line[0] === '::1' && line[1] === 'peercdn.com') {
-          t.fail('remove failed')
+test('remove ipv6', function(t) {
+  t.plan(2);
+  hostile.remove({ ip: '::1', host: 'peercdn.com' }, function(err) {
+    t.error(err);
+    hostile.get(false, function(err, lines) {
+      t.error(err);
+      lines.forEach(function(line) {
+        if (line.ip === '::1' && line.host === 'peercdn.com') {
+          t.fail('remove failed');
         }
-      })
-    })
-  })
-})
+      });
+    });
+  });
+});
 
-test('set and get space-separated domains', function (t) {
-  t.plan(3)
-  hostile.set('127.0.0.5', 'www.peercdn.com  m.peercdn.com', function (err) {
-    t.error(err)
-    hostile.get(false, function (err, lines) {
-      t.error(err)
-      var exists = lines.some(function (line) {
-        return line[0] === '127.0.0.5' && line[1] === 'www.peercdn.com  m.peercdn.com'
-      })
-      t.ok(exists, 'host line exists')
-    })
-  })
-})
+test('set and get space-separated domains', function(t) {
+  t.plan(3);
+  hostile.set({ ip: '127.0.0.5', host: 'www.peercdn.com  m.peercdn.com' }, function(err) {
+    t.error(err);
+    hostile.get(false, function(err, lines) {
+      t.error(err);
+      var exists = lines.some(function(line) {
+        return line.ip === '127.0.0.5' && line.host === 'www.peercdn.com  m.peercdn.com';
+      });
+      t.ok(exists, 'host line exists');
+    });
+  });
+});

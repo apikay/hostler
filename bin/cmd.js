@@ -1,150 +1,162 @@
 #!/usr/bin/env node
 
-var chalk = require('chalk')
-var hostile = require('../')
-var minimist = require('minimist')
-var net = require('net')
+const chalk = require('chalk');
+const hostile = require('../');
+const minimist = require('minimist');
+const net = require('net');
 
-var argv = minimist(process.argv.slice(2))
-
-var command = argv._[0]
-
-if (command === 'list' || command === 'ls') list()
-if (command === 'set') set(argv._[1], argv._[2])
-if (command === 'remove') remove(argv._[1])
-if (command === 'load') load(argv._[1])
-if (command === 'unload') unload(argv._[1])
-if (!command) help()
+const argv = minimist(process.argv.slice(2));
 
 /**
  * Print help message
  */
-function help () {
-  console.log(function () { /*
-  Usage: hostile [command]
+const help = () => {
+  console.log(`
+Usage: hostile [command]
 
-    Commands:
-
-      list                   List all current domain records in hosts file
-      set [ip] [host]        Set a domain in the hosts file
-      remove [domain]        Remove a domain from the hosts file
-      load [file]            Load a set of host entries from a file
-      unload [file]          Remove a set of host entries from a file
-
-  */ }.toString().split(/\n/).slice(1, -1).join('\n'))
-}
+Commands:
+  list [all]                  List all current domain records in hosts file
+  set [ip] [host] [comment]       Set a domain in the hosts file
+  remove [domain]        Remove a domain from the hosts file
+  load [file]            Load a set of host entries from a file
+  unload [file]          Remove a set of host entries from a file
+  `);
+};
 
 /**
  * Display all current ip records
  */
-function list () {
-  var lines
+const list = full => {
+  let lines;
   try {
-    lines = hostile.get(false)
+    lines = hostile.get(full || false);
   } catch (err) {
-    return error(err)
+    return error(err);
   }
-  lines.forEach(function (item) {
-    if (item.length > 1) {
-      console.log(item[0], chalk.green(item[1]))
+  lines.forEach(item => {
+    if (item.length || item.length === 0) {
+      console.log(item);
     } else {
-      console.log(item)
+      const { ip, host, comment } = item;
+      console.log(`${ip} ${chalk.green(host)}${comment ? ` # ${chalk.blue(comment)}` : ''}`);
     }
-  })
-}
+  });
+};
 
 /**
  * Set a new host
  * @param {string} ip
  * @param {string} host
  */
-function set (ip, host) {
+const set = (ip, host, comment) => {
   if (!ip || !host) {
-    return error('Invalid syntax: hostile set <ip> <host>')
+    return error('Invalid syntax: hostile set <ip> <host> [<comment>]');
   }
 
   if (ip === 'local' || ip === 'localhost') {
-    ip = '127.0.0.1'
+    ip = '127.0.0.1';
   } else if (!net.isIP(ip)) {
-    return error('Invalid IP address')
+    return error('Invalid IP address');
   }
 
+  let inserted = 0;
   try {
-    hostile.set(ip, host)
+    inserted = hostile.set({ ip, host, comment });
   } catch (err) {
-    return error('Error: ' + err.message + '. Are you running as root?')
+    return error(`Error: ${err.message}. Are you running as root?`);
   }
-  console.log(chalk.green('Added ' + host))
-}
+  if (inserted === 0) {
+    console.log(chalk.yellow(`Not added: ${host}`));
+  } else {
+    console.log(chalk.green(`Added: ${host}`));
+  }
+
+  return inserted;
+};
 
 /**
  * Remove a host
  * @param {string} host
  */
-function remove (host) {
-  var lines
+const remove = host => {
+  let lines;
   try {
-    lines = hostile.get(false)
+    lines = hostile.get(false);
   } catch (err) {
-    return error(err)
+    return error(err);
   }
-  lines.forEach(function (item) {
-    if (item[1] === host) {
+  let found = 0;
+  lines.forEach(item => {
+    if (item.host === host) {
+      found++;
       try {
-        hostile.remove(item[0], host)
+        hostile.remove({ ip: item.ip, host });
       } catch (err) {
-        return error('Error: ' + err.message + '. Are you running as root?')
+        return error(`Error: ${err.message}. Are you running as root?`);
       }
-      console.log(chalk.green('Removed ' + host))
+      console.log(chalk.green(`Removed: ${host}`));
     }
-  })
-}
+  });
+  if (found === 0) {
+    console.log(chalk.yellow(`Not found: ${host}`));
+  }
+  return found;
+};
 
 /**
  * Load hosts given a file
  * @param {string} filePath
  */
-function load (filePath) {
-  var lines = parseFile(filePath)
-
-  lines.forEach(function (item) {
-    set(item[0], item[1])
-  })
-  console.log(chalk.green('\nAdded %d hosts!'), lines.length)
-}
+const load = filePath => {
+  const lines = parseFile(filePath);
+  let inserted = 0;
+  lines.forEach(({ ip, host, comment }) => {
+    inserted += set(ip, host, comment);
+  });
+  console.log(chalk.green('\nAdded %d hosts!'), inserted);
+};
 
 /**
  * Remove hosts given a file
  * @param {string} filePath
  */
-function unload (filePath) {
-  var lines = parseFile(filePath)
-
-  lines.forEach(function (item) {
-    remove(item[1])
-  })
-  console.log(chalk.green('Removed %d hosts!'), lines.length)
-}
+const unload = filePath => {
+  const lines = parseFile(filePath);
+  let removed = 0;
+  lines.forEach(({ host }) => {
+    removed += remove(host);
+  });
+  console.log(chalk.green('Removed %d hosts!'), removed);
+};
 
 /**
  * Get all the lines of the file as array of arrays [[IP, host]]
  * @param {string} filePath
  */
-function parseFile (filePath) {
-  var lines
+const parseFile = filePath => {
+  let lines;
   try {
-    lines = hostile.getFile(filePath, false)
+    lines = hostile.getFile(filePath, false);
   } catch (err) {
-    return error(err)
+    return error(err);
   }
-  return lines
-}
+  return lines;
+};
 
 /**
  * Print an error and exit the program
  * @param {string} message
  */
-function error (err) {
-  console.error(chalk.red(err.message || err))
-  process.exit(-1)
-}
+const error = err => {
+  console.error(chalk.red(err.message || err));
+  process.exit(-1);
+};
+
+const command = argv._[0];
+
+if (command === 'list' || command === 'ls') list(argv._[1]);
+if (command === 'set') set(argv._[1], argv._[2], argv._[3]);
+if (command === 'remove') remove(argv._[1]);
+if (command === 'load') load(argv._[1]);
+if (command === 'unload') unload(argv._[1]);
+if (!command) help();

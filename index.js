@@ -1,18 +1,17 @@
-var fs = require('fs')
-var once = require('once')
-var split = require('split')
-var through = require('through')
-var net = require('net')
+const fs = require('fs');
+const once = require('once');
+const split2 = require('split2');
+const through2 = require('through2');
+const net = require('net');
 
-var WINDOWS = process.platform === 'win32'
-var EOL = WINDOWS
-  ? '\r\n'
-  : '\n'
+const WINDOWS = process.platform === 'win32';
+const EOL = WINDOWS ? '\r\n' : '\n';
 
-exports.HOSTS = WINDOWS
-  ? 'C:/Windows/System32/drivers/etc/hosts'
-  : '/etc/hosts'
+const HOSTS = WINDOWS ? 'C:/Windows/System32/drivers/etc/hosts' : '/etc/hosts';
 
+// weak function to determine if is a string, as I'm not using arrays
+// const isString = item => item.length || item.length === 0;
+const isString = item => typeof item === 'string' || item instanceof String;
 /**
  * Get a list of the lines that make up the filePath. If the
  * `preserveFormatting` parameter is true, then include comments, blank lines
@@ -21,40 +20,46 @@ exports.HOSTS = WINDOWS
  * @param  {boolean}   preserveFormatting
  * @param  {function(err, lines)=} cb
  */
-
-exports.getFile = function (filePath, preserveFormatting, cb) {
-  var lines = []
-  if (typeof cb !== 'function') {
-    fs.readFileSync(filePath, { encoding: 'utf8' }).split(/\r?\n/).forEach(online)
-    return lines
-  }
-
-  cb = once(cb)
-  fs.createReadStream(filePath, { encoding: 'utf8' })
-    .pipe(split())
-    .pipe(through(online))
-    .on('close', function () {
-      cb(null, lines)
-    })
-    .on('error', cb)
-
-  function online (line) {
-    // Remove all comment text from the line
-    var lineSansComments = line.replace(/#.*/, '')
-    var matches = /^\s*?(.+?)\s+(.+?)\s*$/.exec(lineSansComments)
-    if (matches && matches.length === 3) {
-      // Found a hosts entry
-      var ip = matches[1]
-      var host = matches[2]
-      lines.push([ip, host])
+const getFile = (filePath, preserveFormatting, cb) => {
+  let lines = [];
+  const online = function(chunk, enc, callback) {
+    const line = isString(chunk) ? chunk : chunk.toString();
+    const matches = /^((\s*(?<ip>[0-9.:]+)\s+)(?<host>[\w.\s-]+))?(\s+)?(# (?<comment>.*))?$/.exec(
+      line,
+    );
+    if (matches && matches.groups.ip) {
+      lines.push({ ...matches.groups }); // Found a hosts entry
     } else {
-      // Found a comment, blank line, or something else
       if (preserveFormatting) {
-        lines.push(line)
+        lines.push(line); // Found a comment, blank line, or something else
       }
     }
+    if (typeof cb === 'function') {
+      callback();
+    }
+  };
+
+  if (typeof cb !== 'function') {
+    fs.readFileSync(filePath, { encoding: 'utf8' })
+      .split(/\r?\n/)
+      .forEach(online);
+    return lines;
   }
-}
+  
+  cb = once(cb);
+  try {
+    const rs = fs.createReadStream(filePath, { encoding: 'utf8' });
+    rs.on('close', () => {
+      cb(null, lines);
+    });
+    rs.on('error', err => {
+      cb(err);
+    });
+    rs.pipe(split2()).pipe(through2({ encoding: 'utf8' }, online));
+  } catch (e) {
+    console.log(e);
+  }
+};
 
 /**
  * Wrapper of `getFile` for getting a list of lines in the Host file
@@ -62,9 +67,9 @@ exports.getFile = function (filePath, preserveFormatting, cb) {
  * @param  {boolean}   preserveFormatting
  * @param  {function(err, lines)=} cb
  */
-exports.get = function (preserveFormatting, cb) {
-  return exports.getFile(exports.HOSTS, preserveFormatting, cb)
-}
+const get = (preserveFormatting, cb) => {
+  return getFile(HOSTS, preserveFormatting, cb);
+};
 
 /**
  * Add a rule to /etc/hosts. If the rule already exists, then this does nothing.
@@ -73,45 +78,54 @@ exports.get = function (preserveFormatting, cb) {
  * @param  {string}   host
  * @param  {function(Error)=} cb
  */
-exports.set = function (ip, host, cb) {
-  var didUpdate = false
-  if (typeof cb !== 'function') {
-    return _set(exports.get(true))
-  }
+const set = (/* { ip, host, comment } */ newLine, cb) => {
+  let didUpdate = false;
 
-  exports.get(true, function (err, lines) {
-    if (err) return cb(err)
-    _set(lines)
-  })
-
-  function _set (lines) {
+  const _set = lines => {
     // Try to update entry, if host already exists in file
-    lines = lines.map(mapFunc)
+    lines = lines.map(mapFunc);
 
     // If entry did not exist, let's add it
     if (!didUpdate) {
       // If the last line is empty, or just whitespace, then insert the new entry
       // right before it
-      var lastLine = lines[lines.length - 1]
+      const lastLine = lines[lines.length - 1];
       if (typeof lastLine === 'string' && /\s*/.test(lastLine)) {
-        lines.splice(lines.length - 1, 0, [ip, host])
+        lines.splice(lines.length - 1, 0, newLine);
       } else {
-        lines.push([ip, host])
+        lines.push(newLine);
       }
     }
 
-    exports.writeFile(lines, cb)
+    !didUpdate && writeFile(lines, cb);
+    didUpdate && (typeof cb === 'function') && cb();
+    return didUpdate ? 0 : 1;
+  };
+
+  const mapFunc = line => {
+    // replace a line if both hostname and ip version of the address matches
+    if (
+      !isString(line) &&
+      line.host === newLine.host &&
+      net.isIP(line.ip) === net.isIP(newLine.ip)
+    ) {
+      line.ip = newLine.ip;
+      didUpdate = true;
+    }
+    return line;
+  };
+
+  if (typeof cb !== 'function') {
+    return _set(get(true));
   }
 
-  function mapFunc (line) {
-    // replace a line if both hostname and ip version of the address matches
-    if (Array.isArray(line) && line[1] === host && net.isIP(line[0]) === net.isIP(ip)) {
-      line[0] = ip
-      didUpdate = true
-    }
-    return line
-  }
-}
+  get(true, (err, lines) => {
+    if (err) return cb(err);
+    _set(lines);
+  });
+
+  return didUpdate ? 0 : 1;
+};
 
 /**
  * Remove a rule from /etc/hosts. If the rule does not exist, then this does
@@ -121,27 +135,59 @@ exports.set = function (ip, host, cb) {
  * @param  {string}   host
  * @param  {function(Error)=} cb
  */
-exports.remove = function (ip, host, cb) {
-  if (typeof cb !== 'function') {
-    return _remove(exports.get(true))
-  }
-
-  exports.get(true, function (err, lines) {
-    if (err) return cb(err)
-    _remove(lines)
-  })
-
-  function _remove (lines) {
+const remove = ({ ip, host }, cb) => {
+  const _remove = lines => {
     // Try to remove entry, if it exists
-    lines = lines.filter(filterFunc)
-    return exports.writeFile(lines, cb)
+    const results = lines.filter(filterFunc);
+    return results.length !== lines.length && writeFile(results, cb);
+  };
+
+  const filterFunc = line => {
+    return !(!isString(line) && line.ip === ip && line.host === host);
+  };
+
+  if (typeof cb !== 'function') {
+    return _remove(get(true));
   }
 
-  function filterFunc (line) {
-    return !(Array.isArray(line) && line[0] === ip && line[1] === host)
-  }
-}
+  get(true, (err, lines) => {
+    if (err) return cb(err);
+    _remove(lines);
+  });
+};
 
+/**
+ * Return a timestamp with the format "m/d/yy h:MM:ss TT"
+ * @type {Date}
+ */
+
+const timeStamp = () => {
+  // Create a date object with the current time
+  var now = new Date();
+
+  // Create an array with the current month, day and time
+  var date = [now.getFullYear(), now.getMonth() + 1, now.getDate()];
+
+  // Create an array with the current hour, minute and second
+  var time = [now.getHours(), now.getMinutes(), now.getSeconds()];
+
+  // If seconds and minutes are less than 10, add a zero
+  for (var i = 1; i < 3; i++) {
+    if (time[i] < 10) {
+      time[i] = '0' + time[i];
+    }
+  }
+
+  // Return the formatted string
+  return date.join('_') + '_' + time.join('_');
+};
+
+const makeBackup = () => {
+  const rs = fs.createReadStream(HOSTS, { encoding: 'utf8' });
+  const target = `${HOSTS}.${timeStamp()}`;
+  var ws = fs.createWriteStream(target);
+  rs.pipe(ws);
+};
 /**
  * Write out an array of lines to the host file. Assumes that they're in the
  * format that `get` returns.
@@ -149,32 +195,44 @@ exports.remove = function (ip, host, cb) {
  * @param  {Array.<string|Array.<string>>} lines
  * @param  {function(Error)=} cb
  */
-exports.writeFile = function (lines, cb) {
-  lines = lines.map(function (line, lineNum) {
-    if (Array.isArray(line)) {
-      line = line[0] + ' ' + line[1]
+const writeFile = (lines, cb) => {
+  lines = lines.map((line, lineNum) => {
+    if (!isString(line)) {
+      const { host, ip, comment } = line;
+      line = `${ip} ${host}${comment ? ` # ${comment}` : ''}`;
     }
-    return line + (lineNum === lines.length - 1 ? '' : EOL)
-  })
+    return `${line}${lineNum === lines.length - 1 ? '' : EOL}`;
+  });
+
+  makeBackup();
 
   if (typeof cb !== 'function') {
-    var stat = fs.statSync(exports.HOSTS)
-    fs.writeFileSync(exports.HOSTS, lines.join(''), { mode: stat.mode })
-    return true
+    const stat = fs.statSync(HOSTS);
+    fs.writeFileSync(HOSTS, lines.join(''), { mode: stat.mode });
+    return true;
   }
 
-  cb = once(cb)
-  fs.stat(exports.HOSTS, function (err, stat) {
+  cb = once(cb);
+  fs.stat(HOSTS, (err, stat) => {
     if (err) {
-      return cb(err)
+      return cb(err);
     }
-    var s = fs.createWriteStream(exports.HOSTS, { mode: stat.mode })
-    s.on('close', cb)
-    s.on('error', cb)
+    const s = fs.createWriteStream(HOSTS, { mode: stat.mode });
+    s.on('close', cb);
+    s.on('error', cb);
 
-    lines.forEach(function (data) {
-      s.write(data)
-    })
-    s.end()
-  })
-}
+    lines.forEach(data => {
+      s.write(data);
+    });
+    s.end();
+  });
+};
+
+module.exports = {
+  HOSTS,
+  getFile,
+  get,
+  set,
+  remove,
+  writeFile,
+};
